@@ -1,0 +1,88 @@
+---
+title: "Car MPG Calcuolator"
+author: "Michael Kamfonas"
+date: "October 15, 2015"
+output: html_document
+---
+
+## Overview
+
+The application plots a graph showing weight vs. MPG with two regression lines, one for automatic and one for manual transmission. The primary predictor is always the weight. Either horsepower or acceleration can be selected as a secondary predictor. The tree models used are: 
+
+*   Based on weight alone
+*   Based on weight and horsepower
+*   Based on weight and acceleration (seconds to quarter-mile)
+
+
+```{r echo=FALSE, results="hide",message=FALSE,warning=FALSE }
+require(datasets);data("mtcars");require(GGally);require(ggplot2)
+#install.packages("cowplot")
+require("gridExtra");require("cowplot");require("pander");require(grid)
+head(mtcars)
+nrow(mtcars)
+cor(mtcars[,1:6])
+mtcars$am<-factor(mtcars$am,labels = c("Automatic","Manual"))
+
+D <- rbind(Automatic = 
+mean(mtcars$mpg[mtcars$am=="Automatic"])+c(Q1=-1,Avg=0,Q3=1)*sd(mtcars$mpg[mtcars$am=="Automatic"]),
+Manual=mean(mtcars$mpg[mtcars$am=="Manual"])+c(-1,0,1)*sd(mtcars$mpg[mtcars$am=="Manual"]))
+```
+
+## Application Operation
+
+After bringing up the application the following appears:
+
+<ul><li>   On the left column, one option-box with three choices and three sliders
+    <ul><li> THe option box determines which of three prediction functions we want to use. One based only on the weight of the car, the second based on the weight and the horsepower, and the third based on weight and acceleration (measured as seconds-to-quarter-mile). WHen the application first comes up, the second choice is selected by default.
+    </li><li> The "Weight" slider allows the user to change the weight of the car, measured in thousand-pound units. After moving the slider, the plot gets redrawn
+    </li><li> The "Horsepower" slider allows the user to set the horsepower. If the second radio-button is selected, then this value is factored in the computation. As the values change, you will notice that the lines of the plot change position. This is because the weight-MPG regression lines are condition on a specific value of the horsepower.
+    </li><li> The acceleration slider allows the user to set the amount of seconds to a quarter-mile. This value is used if the third option button is selected. As the value changes, the regression lines on the plot adjust. 
+    </li></ul>
+</li><li> On the right, a plot is drawn that looks like this:
+</ul>
+```{r echo=FALSE,digits=2}
+            choice <- 2
+            input<-data.frame(hp=100,wt=2.3,qsec=12)
+
+
+data<- mtcars[,c(1,4,6,7,9)]
+fit1 <- lm(mpg ~ factor(am)*wt,data=data);s1<-summary(fit1)
+fit2 <- lm(mpg ~ factor(am)*wt+hp,data=data);s2<-summary(fit1)
+fit3 <- lm(mpg ~ factor(am)*wt+qsec,data=data);s3<-summary(fit1)
+            newdata<-data.frame(hp=input$hp,wt=1:4,qsec=input$qsec,am="Manual")
+            newdata<- rbind(newdata,data.frame(hp=input$hp,wt=1:5,qsec=input$qsec,am="Automatic"))
+            
+            in.auto <- data.frame(hp=input$hp[1],wt=input$wt[1],qsec=input$qsec[1],am="Manual")
+            in.man <- data.frame(hp=input$hp,wt=input$wt,qsec=input$qsec,am="Automatic")
+            title="MPG vs. Weight by Transmission Type"
+            if(choice == "1") {fit=fit1 ; }
+            if(choice == "2") {fit=fit2 ; title=paste(title,"\n for Horsepower=",in.auto$hp)}
+            if (choice == "3") {fit=fit3 ; title=paste("MPG vs. Weight\n for Acceleration QSec=",in.auto$qsec)}
+            
+            pred<- predict.lm(fit,newdata,interval="prediction",level=0.9)
+            pred.auto<- predict.lm(fit,in.auto,interval="prediction",level=0.9)
+            pred.man<- predict.lm(fit,in.man,interval="prediction",level=0.9)
+            
+            text.auto<-ifelse(in.man$wt <= 4, 
+                              paste("   Manual: avg=",round(pred.auto[1],2)," (",
+                             round(pred.auto[2],2), "-", round(pred.auto[3],2),")"),
+                             "   Manual: No estimate over 4K pounds")
+
+            text.man<-paste("Automatic: avg=",round(pred.man[1],2)," (", 
+                            round(pred.man[2],2), "-", round(pred.man[3],2),")")
+            
+            X<- cbind(pred,newdata)
+            ggplot(data=X)+geom_line(aes(x=wt,y=fit,color=am),stat="identity",lwd=1)+
+                geom_ribbon(aes(x=wt,ymin=lwr,ymax=upr,fill=am),alpha=0.2)+
+                geom_vline(xintercept=as.numeric(in.auto[2]),lwd=1) +
+                ggtitle(title) +
+                xlab("Weight in K-Pounds") +
+                ylab("Estimated MPG") +
+                geom_text(aes(x=3.5,y=40),label=text.auto)+
+                geom_text(aes(x=3.5,y=38),label=text.man) 
+
+```
+
+The title tells us what prediction algorithm is used for the estimation, and what value of horsepower or quarter-mile-seconds is used. The vertical black line marks the weight of the car based on the value selected by the respective slider. Two regression lines are shown, The red for manual transmission, and the green for automatic. The shaded area indicates the prediction 90% confidence range. Notice that for manual transmission the model cannot predict MPG for cars heavier than 4,000 pounds.
+
+The two text lines on the graph, print the estimated average MPG and its 90% confidence range for manual and automatic transmission cars. 

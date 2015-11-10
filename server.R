@@ -44,5 +44,7 @@ shinyServer(
                 geom_text(aes(x=3.5,y=40),label=text.auto)+
                 geom_text(aes(x=3.5,y=38),label=text.man) 
         })
+        
+         
     }
 )
